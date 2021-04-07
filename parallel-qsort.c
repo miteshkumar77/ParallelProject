@@ -5,6 +5,10 @@
 #include "./filereader.h"
 
 #define IS_LEADER(_rank, _pool) _rank % _pool == 0 
+
+int rc, errorlen;
+char errorStr[MPI_MAX_ERROR_STRING];
+
 /* own process rank, total number of ranks */
 int myrank, numranks;
 
@@ -14,17 +18,32 @@ MPI_Group world_group;
 /* Store data array */
 elem* dataptr;
 
+/* Data Start Pointer */
+elem* data_start;
+
+/* Data End Pointer */
+elem* data_end;
+
 /* Path to read from */
 char* frpath;
 
 /* Path to write to */
 char* fwrpath;
 
-
 /* Number of bits in a 32 bit integer
  * If bitCount(n) = 1, then n is a power of 2
  */
 int bitCount(int num);
+
+
+/* Get the number of elements 
+ * this rank currently holds
+ */
+size_t numElems();
+
+/* Get the median of the data set */
+elem getMedian();
+
 
 /**
  * Parallel Sort Algorithm
@@ -39,6 +58,7 @@ int main(int argc, char** argv) {
 	/* Verify that numranks is a power of 2 */
 	if (bitCount(numranks) != 1) {
 		fprintf(stderr, "ERROR rank(%d): number of ranks = %d wasn't a power of 2, total 1 bits: %d, should be 1\n", myrank, numranks, bitCount(numranks));
+		MPI_Abort(MPI_COMM_WORLD, 0);
 		return EXIT_FAILURE;
 	}
 
@@ -47,6 +67,9 @@ int main(int argc, char** argv) {
 	if (argc != 3) {
 		fprintf(stderr, "ERROR rank(%d): invalid arguments\n", myrank);
 		fprintf(stderr, "USAGE: %s <frpath> <fwrpath>\n", *argv); 
+		MPI_Abort(MPI_COMM_WORLD, 0);
+
+
 		return EXIT_FAILURE;
 	}
 
@@ -55,88 +78,130 @@ int main(int argc, char** argv) {
 
 	MPI_Offset bytes_read = readfile(myrank, numranks, &dataptr, frpath, MPI_COMM_WORLD); 
 	MPI_Offset nSize = bytes_read/sizeof(elem);
+	data_start = dataptr;
+	data_end   = dataptr + nSize - 1;
 	
-	if (nSize < numranks) {
+	if (nSize == 0) {
 		fprintf(stderr, "ERROR rank(%d): More ranks than elements in the input.\n", myrank);
+
+		MPI_Abort(MPI_COMM_WORLD, 0);
 		exit(EXIT_FAILURE);
 	}
 
-#ifdef DEBUG_MODE	
-	printf("ORIGINAL:");
-	for (MPI_Offset i = 0; i < nSize; ++i) {
-		printf(" %d", *(dataptr + i));
-	}
-	printf("\n");
-#endif
-
-
-
 	m_qsort(dataptr, dataptr + nSize - 1);
-//	m_bubble_sort(dataptr, dataptr + nSize - 1);
-#ifdef DEBUG_MODE	
-	/* Validate sort */
-	for (MPI_Offset i = 0; i + 1 < nSize; ++i) {
-		if ((*(dataptr + i)) > *(dataptr + i + 1)) {
-			printf("ERROR rank(%d): Array not sorted...", myrank);
-			return EXIT_FAILURE;
-		}
-	}
 
-	printf("AFTER SORT:");
-	for (MPI_Offset i = 0; i < nSize; ++i) {
-		printf(" %d", *(dataptr + i));
-	}
-	printf("\n");
-#endif
-	
+	MPI_Comm parent_comm = MPI_COMM_WORLD;
+	int localRank = myrank;
+	int localNumranks = numranks;
 	/* BEGIN PARALLEL SORT */
 	MPI_Barrier(MPI_COMM_WORLD);
+	while(localNumranks > 1) {
 
-	/* part: offset of the node that we have to send to / recv from */
-	/* pool: size of the current comm group */
-	int part = numranks >> 1;
-	int pool = numranks;
-	for (; part > 0; part >>= 1, pool >>= 1) {
-		/* create a ranks array for this comm group */
-		int* ranks = malloc(pool * sizeof(int));
-		if (ranks == NULL) {
-			fprintf(stderr, "ERROR rank(%d): malloc() failed\n", myrank);
-			exit(EXIT_FAILURE);
-		}
-		/* the starting rank that is part of the comm group for this iteration */
-		int r = (myrank / pool) * pool;
 #ifdef DEBUG_MODE
-		printf("rank(%d) part(%d) pool(%d): STARTRANK = %d\n", myrank, part, pool, r);
+		fprintf(stderr, "G_RANK(%d) G_NUMRANKS(%d) L_RANK(%d) L_NUMRANKS(%d)\n", myrank, numranks, localRank, localNumranks);
 #endif
-		int idx = 0;
-		for (; idx < pool; ++r, ++idx) {
-			ranks[idx] = r;
-		}
-
-		MPI_Comm comm_pool;
 		
+		int* localHaveElems = NULL;
+		elem* localMedians = NULL;
+		
+		int ownHasElems = (numElems() > 0);
+		elem ownLocalMedian = 0;
+		if (ownHasElems) {
+			ownLocalMedian = getMedian();
+		}
 
-		/* LEADER is the first rank of the pool */
-		if (IS_LEADER(myrank, pool)) {
+		if (localRank == 0) { /* LEADER */
 #ifdef DEBUG_MODE
-			printf("LEADER: rank(%d) part(%d) pool(%d)\n", myrank, part, pool);
+			fprintf(stderr, "LEADER RANK(%d) L_RANK(%d)\n", myrank, localRank);
 #endif
+			
+			localHaveElems = (int*)calloc(localNumranks, sizeof(int));
+			localMedians = (elem*)calloc(localNumranks, sizeof(elem));
+		}
+		
+		rc = MPI_Gather(&ownHasElems, 1, MPI_INT32_T, localHaveElems, 1, MPI_INT32_T, 0, parent_comm);
+		if (rc != MPI_SUCCESS) {
+			MPI_Error_string(rc, errorStr, &errorlen);
+			fprintf(stderr, "ERROR RANK(%d): MPI_Gather(HasElems) failed with error code(%d): %s\n", myrank, rc, errorStr);
+			MPI_Abort(MPI_COMM_WORLD, rc);
+		}
+
+		rc = MPI_Gather(&ownLocalMedian, 1, MPI_INT32_T, localMedians, 1, MPI_INT32_T, 0, parent_comm);
+		if (rc != MPI_SUCCESS) {
+			MPI_Error_string(rc, errorStr, &errorlen);
+			fprintf(stderr, "ERROR RANK(%d): MPI_Gather(localMedians) failed with error code(%d): %s\n", myrank, rc, errorStr);
+			MPI_Abort(MPI_COMM_WORLD, rc);
 		}
 #ifdef DEBUG_MODE
-		printf("GROUP rank(%d) part(%d) pool(%d):", myrank, part, pool);
-		for (int i = 0; i < pool; ++i) {
-			printf(" %d", ranks[i]);
+		if (localRank == 0) {
+			printf("RANK(%d) L_RANK(%d) MEDIANS:", myrank, localRank);
+			for (int i = 0; i < localNumranks; ++i) {
+				if (localHaveElems[i]) {
+					printf(" %d", localMedians[i]);
+				} else {
+					printf(" _");
+				}
+			}
+			printf("\n");
 		}
-		printf("\n");
+#endif
+		elem consensusMedian = 0;
+		if (localRank == 0) {
+			consensusMedian = findKth(localMedians, localMedians + localNumranks - 1, localNumranks/2);
+		}
+		elem recvConsensusMedian;
+		
+	
+		rc = MPI_Scatter(&consensusMedian, 1, MPI_INT32_T, &recvConsensusMedian, 1, MPI_INT32_T, 0, parent_comm); 
+
+		if (rc != MPI_SUCCESS) {
+			MPI_Error_string(rc, errorStr, &errorlen);
+			fprintf(stderr, "ERROR RANK(%d): MPI_Scatter(consensusMedian) failed with error code(%d): %s\n", myrank, rc, errorStr);
+			MPI_Abort(MPI_COMM_WORLD, rc);
+		}
+
+#ifdef DEBUG_MODE	
+		fprintf(stderr, "G_RANK(%d) L_RANK(%d) CONSENSUS_MEDIAN(%d)\n", myrank, localRank, recvConsensusMedian); 
 #endif
 
-		free(ranks);
-		MPI_Barrier(MPI_COMM_WORLD);
+		MPI_Barrier(parent_comm);
+		int color = (localRank >= (localNumranks >> 1));
+		int key   = (localRank % (localNumranks >> 1));
+		rc = MPI_Comm_split(parent_comm, color, key, &parent_comm);
+		if (rc != MPI_SUCCESS) {
+			MPI_Error_string(rc, errorStr, &errorlen);
+			fprintf(stderr, "ERROR RANK(%d): MPI_Comm_split() failed with error code(%d): %s\n", myrank, rc, errorStr);
+			MPI_Abort(MPI_COMM_WORLD, rc);
+		}
+		
+		rc = MPI_Comm_rank(parent_comm, &localRank);
+		if (rc != MPI_SUCCESS) {
+			MPI_Error_string(rc, errorStr, &errorlen);
+			fprintf(stderr, "ERROR RANK(%d): MPI_Comm_rank() failed with error code(%d): %s\n", myrank, rc, errorStr);
+			MPI_Abort(MPI_COMM_WORLD, rc);
+		}
+
+		rc = MPI_Comm_size(parent_comm, &localNumranks);
+		if (rc != MPI_SUCCESS) {
+			MPI_Error_string(rc, errorStr, &errorlen);
+			fprintf(stderr, "ERROR RANK(%d): MPI_Comm_size() failed with error code(%d): %s\n", myrank, rc, errorStr);
+			MPI_Abort(MPI_COMM_WORLD, rc);
+		}
+
 	}
 	
+
+
+
+
+	MPI_Barrier(MPI_COMM_WORLD);
+
 	/* END PARALLEL SORT */
+
 	free(dataptr);
-	
+
+	/* MPI Clean up */
+	MPI_Finalize();
 	return EXIT_SUCCESS;
 }
 
@@ -153,6 +218,13 @@ int bitCount(int num) {
 
 
 
+size_t numElems() {
+	return (data_end - data_start + 1);
+}
+
+elem getMedian() {
+	return findKth(data_start, data_end, numElems()/2);
+}
 
 
 

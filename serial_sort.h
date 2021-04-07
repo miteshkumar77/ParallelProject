@@ -108,6 +108,10 @@ void m_qsort(elem* l, elem* r) {
  */
 
 elem findKth(elem* l, elem* r, size_t k) {
+	if (k > (1 + (r - l))) {
+		fprintf(stderr, "ERROR: k(%ld) larger than total size(%ld) bytes(%ld)\n", k, ((r - l)/sizeof(elem)), (r - l)); 
+		exit(EXIT_FAILURE);
+	}
 	elem* piv;
 	while(l < r) {
 		piv = rand() % (r - l) + l;
@@ -121,10 +125,7 @@ elem findKth(elem* l, elem* r, size_t k) {
 			return *piv;
 		}
 	}
-	if (k != 0) {
-		fprintf(stderr, "ERROR: undefined sequence k = %ld <> 0\n", k);
-		exit(EXIT_FAILURE);
-	}
+
 	return *l;
 }
 
