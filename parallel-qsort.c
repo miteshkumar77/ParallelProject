@@ -4,8 +4,6 @@
 #include "./serial_sort.h"
 #include "./filereader.h"
 
-#define IS_LEADER(_rank, _pool) _rank % _pool == 0 
-
 int rc, errorlen;
 char errorStr[MPI_MAX_ERROR_STRING];
 
@@ -149,10 +147,8 @@ int main(int argc, char** argv) {
 		if (localRank == 0) {
 			consensusMedian = findKth(localMedians, localMedians + localNumranks - 1, localNumranks/2);
 		}
-		elem recvConsensusMedian;
-		
-	
-		rc = MPI_Scatter(&consensusMedian, 1, MPI_INT32_T, &recvConsensusMedian, 1, MPI_INT32_T, 0, parent_comm); 
+		rc = MPI_Bcast(&consensusMedian, 1, MPI_INT32_T, 0, parent_comm);
+		// rc = MPI_Scatter(&consensusMedian, 1, MPI_INT32_T, &recvConsensusMedian, 1, MPI_INT32_T, 0, parent_comm); 
 
 		if (rc != MPI_SUCCESS) {
 			MPI_Error_string(rc, errorStr, &errorlen);
@@ -161,7 +157,7 @@ int main(int argc, char** argv) {
 		}
 
 #ifdef DEBUG_MODE	
-		fprintf(stderr, "G_RANK(%d) L_RANK(%d) CONSENSUS_MEDIAN(%d)\n", myrank, localRank, recvConsensusMedian); 
+		fprintf(stderr, "G_RANK(%d) L_RANK(%d) CONSENSUS_MEDIAN(%d)\n", myrank, localRank, consensusMedian); 
 #endif
 
 		MPI_Barrier(parent_comm);
