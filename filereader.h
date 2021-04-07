@@ -1,3 +1,18 @@
+/* Compile with -D DEBUG_MODE for debug output.
+ *
+ * Contains methods to:
+ *
+ * -- read elements from a file in 
+ * binary form. Uses the type for element in 
+ * "serial_sort.h". 
+ * Each rank reads an approximately even number
+ * of points. Last rank may have more or less.
+ * (tested a bit)
+ *
+ *
+ * -- write elements to a file in binary form.
+ *    (not tested yet)
+ */
 #include <mpi/mpi.h>
 #include "serial_sort.h"
 

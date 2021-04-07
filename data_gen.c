@@ -1,3 +1,9 @@
+/*
+ * Includes code to generate a random set of 
+ * numbers and writes them to a file. Might 
+ * want to parallelize this later for larger
+ * data sets
+ */
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/types.h>
