@@ -1,5 +1,5 @@
 project:
-	mpicc -Wall -Werror parallel-qsort.c -o project.out -std=c99
+	mpicc -Wall -Werror parallel-qsort.c -o project.out -std=c99 -D FINAL_OUTPUT
 
 generator:
 	gcc -Wall -Werror data_gen.c -o generator.out -std=c99
