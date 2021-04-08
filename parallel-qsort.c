@@ -146,7 +146,11 @@ int main(int argc, char** argv) {
 					swap(&localMedians[medianEnd], &localMedians[medianStart]);
 				}
 			}
+
+#ifdef DEBUG_MODE
 			fprintf(stderr, "medianEnd(%d), localNumranks(%d)\n", medianEnd, localNumranks);
+#endif
+
 			consensusMedian = findKth(localMedians, localMedians + medianEnd - 1, medianEnd/2);
 #ifdef DEBUG_MODE
 			printf("RANK(%d) L_RANK(%d) MEDIANS:", myrank, localRank);
@@ -159,7 +163,7 @@ int main(int argc, char** argv) {
 			}
 			printf("\n");
 #endif
-			// free(localMedians);
+			free(localMedians);
 		}
 
 
@@ -176,7 +180,9 @@ int main(int argc, char** argv) {
 #endif
 
 		elem* split_point = partition(data_start, data_end, consensusMedian);
+#ifdef DEBUG_MODE
 		fprintf(stderr, "G_RANK(%d) L_RANK(%d) SPLIT VAL(%d)\n", myrank, localRank, *split_point);
+#endif
 
 		elem* l_arr = NULL;
 		elem* r_arr = NULL;
@@ -221,98 +227,73 @@ int main(int argc, char** argv) {
 		MPI_Status status_recv;
 		MPI_Request request_send = MPI_REQUEST_NULL;
 		MPI_Request request_recv = MPI_REQUEST_NULL;
-	
+#ifdef DEBUG_MODE
+		fprintf(stderr, "G_RANK(%d) L_RANK(%d) sending send_size(%ld) to rank(%d)\n", myrank, localRank, send_size, src_rank);
+#endif
 		rc = MPI_Irecv(&recv_size, 1, MPI_UINT64_T, src_rank, tag, parent_comm, &request_recv);
-		if (rc != MPI_SUCCESS) {
-			MPI_Error_string(rc, errorStr, &errorlen);
-			fprintf(stderr, "ERROR RANK(%d): MPI_Irecv(size) failed with error code(%d): %s\n", myrank, rc, errorStr);
-			MPI_Abort(MPI_COMM_WORLD, rc);
-		}
-
 		rc = MPI_Isend(&send_size, 1, MPI_UINT64_T, src_rank, tag, parent_comm, &request_send);
-		if (rc != MPI_SUCCESS) {
-			MPI_Error_string(rc, errorStr, &errorlen);
-			fprintf(stderr, "ERROR RANK(%d): MPI_Isend(size) failed with error code(%d): %s\n", myrank, rc, errorStr);
-			MPI_Abort(MPI_COMM_WORLD, rc);
-		}
 
 		rc = MPI_Wait(&request_send, &status_send);
-		if (rc != MPI_SUCCESS) {
-			MPI_Error_string(rc, errorStr, &errorlen);
-			fprintf(stderr, "ERROR RANK(%d): MPI_Wait(send_size) failed with error code(%d): %s\n", myrank, rc, errorStr);
-			MPI_Abort(MPI_COMM_WORLD, rc);
-		}
-
 		rc = MPI_Wait(&request_recv, &status_recv);
-		if (rc != MPI_SUCCESS) {
-			MPI_Error_string(rc, errorStr, &errorlen);
-			fprintf(stderr, "ERROR RANK(%d): MPI_Wait(recv_size) failed with error code(%d): %s\n", myrank, rc, errorStr);
-			MPI_Abort(MPI_COMM_WORLD, rc);
-		}
+
+#ifdef DEBUG_MODE
+		fprintf(stderr, "G_RANK(%d) L_RANK(%d) received recv_size(%ld) from rank(%d)\n", myrank, localRank, recv_size, src_rank);
+#endif
 
 #ifdef DEBUG_MODE
 		fprintf(stderr, "G_RANK(%d) L_RANK(%d): color(%d) recv_size(%ld)\n", myrank, localRank, color, recv_size);
 #endif
 
-		
+
+
 		recv_arr = (elem*)calloc(recv_size, sizeof(elem));
 
-		if (recv_arr == NULL) {
-			fprintf(stderr, "ERROR RANK(%d): calloc() failed\n", myrank);
-			MPI_Abort(MPI_COMM_WORLD, 0);
-		}
-
 		rc = MPI_Irecv(recv_arr, recv_size, MPI_INT32_T, src_rank, tag, parent_comm, &request_recv);
-		if (rc != MPI_SUCCESS) {
-			MPI_Error_string(rc, errorStr, &errorlen);
-			fprintf(stderr, "ERROR RANK(%d): MPI_IRecv(arr) failed with error code(%d): %s\n", myrank, rc, errorStr);
-			MPI_Abort(MPI_COMM_WORLD, rc);
-		}
-
 		rc = MPI_Isend(send_arr, send_size, MPI_INT32_T, src_rank, tag, parent_comm, &request_send);
-		if (rc != MPI_SUCCESS) {
-			MPI_Error_string(rc, errorStr, &errorlen);
-			fprintf(stderr, "ERROR RANK(%d): MPI_Isend(arr) failed with error code(%d): %s\n", myrank, rc, errorStr);
-			MPI_Abort(MPI_COMM_WORLD, rc);
-		}
+
+
 
 		rc = MPI_Wait(&request_send, &status_send);
-		if (rc != MPI_SUCCESS) {
-			MPI_Error_string(rc, errorStr, &errorlen);
-			fprintf(stderr, "ERROR RANK(%d): MPI_Wait(send_arr) failed with error code(%d): %s\n", myrank, rc, errorStr);
-			MPI_Abort(MPI_COMM_WORLD, rc);
-		}
-
 		rc = MPI_Wait(&request_recv, &status_recv);
-		if (rc != MPI_SUCCESS) {
-			MPI_Error_string(rc, errorStr, &errorlen);
-			fprintf(stderr, "ERROR RANK(%d): MPI_Wait(recv_arr) failed with error code(%d): %s\n", myrank, rc, errorStr);
-			MPI_Abort(MPI_COMM_WORLD, rc);
-		}
-#ifdef DEBUG_MODE
+
+		printf("\n");
+
+
+		free(send_arr);
+		free(dataptr);
+
+
+
+
+		elem* new_arr = calloc(keep_size + recv_size, sizeof(elem));
+		memcpy(new_arr, keep_arr, keep_size * sizeof(elem));
+		memcpy(new_arr + keep_size, recv_arr, recv_size * sizeof(elem));
+
+#ifdef DEBUG_MODE		
 		fprintf(stderr, "G_RANK(%d) L_RANK(%d) FINISHED EXCHANGING\n", myrank, localRank);
-#endif
 
-		// free(send_arr);
-		fprintf(stderr, "RANK(%d) FREED SEND_ARR\n", myrank);
-		// free(dataptr);
-		fprintf(stderr, "RANK(%d) FREED DATA_PTR\n", myrank);
+		fprintf(stderr, "G_RANK(%d) L_RANK(%d) KEEP_SIZE(%ld)", myrank, localRank, keep_size);
+		printf("G_RANK(%d) keep_data:", myrank);
+		for (int i = 0; i < keep_size; ++i) {
+			printf(" %d", keep_arr[i]);
+		}
+		printf("\nG_RANK(%d) recv_data:", myrank);
+		for (int i = 0; i < recv_size; ++i) {
+			printf(" %d", recv_arr[i]);
+		}
+		printf("\nG_RANK(%d) final_data:", myrank);
+		for (int i = 0; i < recv_size + keep_size; ++i) {
+			printf(" %d", new_arr[i]);
+		}
 
-		keep_arr = realloc(keep_arr, keep_size + recv_size);
-		fprintf(stderr, "RANK(%d) REALLOCED (%ld)\n", myrank, keep_size + recv_size);
-		keep_arr = (elem*)memcpy((void*)(keep_arr + keep_size), (void*)recv_arr, (size_t)(recv_size * sizeof(elem)));  
-		fprintf(stderr, "RANK(%d) MEMCPYD\n", myrank);
-
-	//	free(recv_arr);
-		fprintf(stderr, "RANK(%d) FREED RECV_ARR\n", myrank);
-
-		dataptr = keep_arr;
-		fprintf(stderr, "RANK(%d) DATAPTR SET\n", myrank);
-		data_start = keep_arr;
-		fprintf(stderr, "RANK(%d) DATA_START SET\n", myrank);
-		data_end = keep_arr + recv_size + keep_size - 1;
+#endif	
+		printf("\n");
+		free(recv_arr);
+		free(keep_arr);
+		dataptr = new_arr;
+		data_start = new_arr;
+		data_end = new_arr + recv_size + keep_size - 1;
 		
-		fprintf(stderr, "RANK(%d) DATA_END SET\n", myrank);
 
 		MPI_Barrier(parent_comm);
 		rc = MPI_Comm_split(parent_comm, color, key, &parent_comm);
@@ -342,16 +323,59 @@ int main(int argc, char** argv) {
 	m_qsort(data_start, data_end);
 
 	MPI_Barrier(MPI_COMM_WORLD);
-
 	/* END PARALLEL SORT */
+
+	size_t out_size = numElems() * sizeof(elem);
+
+	size_t* fsums = NULL;
+
+	if (myrank == 0) {
+		fsums = calloc(numElems() + 1, sizeof(size_t));
+		if (fsums == NULL) {
+			fprintf(stderr, "ERROR RANK(%d): calloc() failed\n", myrank);
+			MPI_Abort(MPI_COMM_WORLD, 0);
+		}
+	}
+
+	rc = MPI_Gather(&out_size, 1, MPI_UINT64_T, fsums + 1, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
+	if (rc != MPI_SUCCESS) {
+		MPI_Error_string(rc, errorStr, &errorlen);
+		fprintf(stderr, "ERROR RANK(%d): MPI_Gather() failed with error code(%d): %s\n", myrank, rc, errorStr);
+		MPI_Abort(MPI_COMM_WORLD, rc);
+	}
+	if (myrank == 0) {	
+		for (int i = 1; i <= numranks; ++i) {
+			fsums[i] += fsums[i - 1];
+		}
+	}
+
+	size_t writeAt;
+	rc = MPI_Scatter(fsums, 1, MPI_UINT64_T, &writeAt, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
+
+
+	if (rc != MPI_SUCCESS) {
+		MPI_Error_string(rc, errorStr, &errorlen);
+		fprintf(stderr, "ERROR RANK(%d): MPI_Scatter() failed with error code(%d): %s\n", myrank, rc, errorStr);
+		MPI_Abort(MPI_COMM_WORLD, rc);
+	}
+
+	free(fsums);
 	
+	fprintf(stderr, "RANK(%d) writing (%ld) bytes at offset (%ld)\n", myrank, out_size, writeAt);
+
+
+
+#ifdef DEBUG_MODE
 	printf("RANK(%d) FINISHED ALGORITHM numElems(%ld):", myrank, numElems());
 	for (elem* it = data_start; it <= data_end; ++it) {
 		printf(" %d", *it);
 	}
 	printf("\n");
+#endif
 
-	// free(dataptr);
+
+
+	free(dataptr);
 
 	/* MPI Clean up */
 	MPI_Finalize();
@@ -409,18 +433,6 @@ void split_array(elem** l_arr, size_t* l_sz, elem** r_arr, size_t* r_sz, elem pv
 	*r_sz = rs;
 
 }
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
