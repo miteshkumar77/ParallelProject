@@ -15,13 +15,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+/* TYPES */
+typedef int elem;
+
 /* GLOBALS */
-int swapvar;
+elem swapvar;
 int* c;
 
-/* TYPES */
-
-typedef int elem;
 
 void swap(elem* a, elem* b) {
 	swapvar = *a;
@@ -29,6 +29,10 @@ void swap(elem* a, elem* b) {
 	*b = swapvar;
 }
 
+/* If a < b, return -1
+ *    a > b, return  1
+ *    a = b, return  0
+ */
 int cmp(elem* a, elem* b) {
 	if (*a < *b) {
 		return -1;
