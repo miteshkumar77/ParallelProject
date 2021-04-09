@@ -6,6 +6,8 @@
 #include "./serial_sort.h"
 #include "./filereader.h"
 
+#define CLOCKS_PER_MSEC 512000
+
 int rc, errorlen;
 char errorStr[MPI_MAX_ERROR_STRING];
 
@@ -29,6 +31,26 @@ char* frpath;
 
 /* Path to write to */
 char* fwrpath;
+
+unsigned long long start_time;
+unsigned long long end_time;
+unsigned long long duration;
+
+/*
+ * 64 bit, free running clock for POWER9/AiMOS system
+ *  Has 512MHz resolution.
+ */
+unsigned long long aimos_clock_read(void) {
+  unsigned int tbl, tbu0, tbu1;
+
+  do {
+    __asm__ __volatile__("mftbu %0" : "=r"(tbu0));
+    __asm__ __volatile__("mftb %0" : "=r"(tbl));
+    __asm__ __volatile__("mftbu %0" : "=r"(tbu1));
+  } while (tbu0 != tbu1);
+
+  return (((unsigned long long)tbu0) << 32) | tbl;
+}
 
 /* Number of bits in a 32 bit integer
  * If bitCount(n) = 1, then n is a power of 2
@@ -70,13 +92,15 @@ int main(int argc, char** argv) {
 		fprintf(stderr, "ERROR rank(%d): invalid arguments\n", myrank);
 		fprintf(stderr, "USAGE: %s <frpath> <fwrpath>\n", *argv); 
 		MPI_Abort(MPI_COMM_WORLD, 0);
-
-
 		return EXIT_FAILURE;
 	}
 
 	/* Set fpath to read from */
 	frpath = *(argv + 1);
+
+	if (myrank == 0) {
+		start_time = aimos_clock_read(); 
+	}
 
 	MPI_Offset bytes_read = readfile(myrank, numranks, &dataptr, frpath, MPI_COMM_WORLD); 
 	MPI_Offset nSize = bytes_read/sizeof(elem);
@@ -92,11 +116,12 @@ int main(int argc, char** argv) {
 
 	m_qsort(dataptr, dataptr + nSize - 1);
 
+	/* BEGIN PARALLEL SORT */
 	MPI_Comm parent_comm = MPI_COMM_WORLD;
 	int localRank = myrank;
 	int localNumranks = numranks;
-	/* BEGIN PARALLEL SORT */
 	MPI_Barrier(MPI_COMM_WORLD);
+
 	while(localNumranks > 1) {
 
 #ifdef DEBUG_MODE
@@ -163,6 +188,7 @@ int main(int argc, char** argv) {
 			}
 			printf("\n");
 #endif
+
 			free(localMedians);
 			free(localHaveElems);
 		}
@@ -191,6 +217,7 @@ int main(int argc, char** argv) {
 		size_t r_sz;
 
 		split_array(&l_arr, &l_sz, &r_arr, &r_sz, *split_point);
+
 #ifdef DEBUG_MODE		
 		fprintf(stderr, "G_RANK(%d) L_RANK(%d): l_sz(%ld) + r_sz(%ld) = total_sz(%ld) <===> numElems(%ld)\n", myrank, localRank,
 				l_sz, r_sz, l_sz + r_sz, numElems());  
@@ -224,13 +251,16 @@ int main(int argc, char** argv) {
 #ifdef DEBUG_MODE
 		fprintf(stderr, "G_RANK(%d) L_RANK(%d) SRC(%d)\n", myrank, localRank, src_rank);
 #endif
+
 		MPI_Status status_send;
 		MPI_Status status_recv;
 		MPI_Request request_send = MPI_REQUEST_NULL;
 		MPI_Request request_recv = MPI_REQUEST_NULL;
+
 #ifdef DEBUG_MODE
 		fprintf(stderr, "G_RANK(%d) L_RANK(%d) sending send_size(%ld) to rank(%d)\n", myrank, localRank, send_size, src_rank);
 #endif
+
 		rc = MPI_Irecv(&recv_size, 1, MPI_UINT64_T, src_rank, tag, parent_comm, &request_recv);
 		rc = MPI_Isend(&send_size, 1, MPI_UINT64_T, src_rank, tag, parent_comm, &request_send);
 
@@ -257,7 +287,6 @@ int main(int argc, char** argv) {
 		rc = MPI_Wait(&request_send, &status_send);
 		rc = MPI_Wait(&request_recv, &status_recv);
 
-		printf("\n");
 
 
 		free(send_arr);
@@ -287,8 +316,8 @@ int main(int argc, char** argv) {
 			printf(" %d", new_arr[i]);
 		}
 
-#endif	
 		printf("\n");
+#endif	
 		free(recv_arr);
 		free(keep_arr);
 		dataptr = new_arr;
@@ -363,7 +392,14 @@ int main(int argc, char** argv) {
 	free(fsums);
 	
 	fprintf(stderr, "RANK(%d) writing (%ld) bytes at offset (%ld)\n", myrank, out_size, writeAt);
-
+	MPI_Barrier(MPI_COMM_WORLD);
+	
+	if (myrank == 0) {
+		end_time = aimos_clock_read();
+		duration = (end_time - start_time)/CLOCKS_PER_MSEC;
+		fprintf(stderr, "TOTAL EXECUTION TIME: %llu MILLISECONDS\n", duration);
+	}
+				
 
 
 #ifdef DEBUG_MODE
