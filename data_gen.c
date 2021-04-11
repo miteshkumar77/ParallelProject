@@ -116,6 +116,12 @@ int main(int argc, char** argv) {
 	printf("\n");
 #endif
 	free(wbuff);
+	rc = close(fd);
+	if (rc != 0) {
+		perror("ERROR: close() failed");
+		return EXIT_FAILURE;
+	}
+
 	return EXIT_SUCCESS;
 }
 
