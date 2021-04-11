@@ -6,6 +6,10 @@
 #include "./serial_sort.h"
 #include "./filereader.h"
 
+#ifdef CUDA_MODE
+#include "./cuda_api.h"
+#endif
+
 #define CLOCKS_PER_MSEC 512000
 
 int rc, errorlen;
@@ -114,7 +118,6 @@ int main(int argc, char** argv) {
 		exit(EXIT_FAILURE);
 	}
 
-	m_qsort(dataptr, dataptr + nSize - 1);
 
 	/* BEGIN PARALLEL SORT */
 	MPI_Comm parent_comm = MPI_COMM_WORLD;
@@ -206,17 +209,16 @@ int main(int argc, char** argv) {
 		fprintf(stderr, "G_RANK(%d) L_RANK(%d) CONSENSUS_MEDIAN(%d)\n", myrank, localRank, consensusMedian); 
 #endif
 
-		elem* split_point = partition(data_start, data_end, consensusMedian);
 #ifdef DEBUG_MODE
-		fprintf(stderr, "G_RANK(%d) L_RANK(%d) SPLIT VAL(%d)\n", myrank, localRank, *split_point);
+		fprintf(stderr, "G_RANK(%d) L_RANK(%d) SPLIT VAL(%d)\n", myrank, localRank, consensusMedian);
 #endif
 
 		elem* l_arr = NULL;
 		elem* r_arr = NULL;
 		size_t l_sz;
 		size_t r_sz;
-
-		split_array(&l_arr, &l_sz, &r_arr, &r_sz, *split_point);
+	
+		split_array(&l_arr, &l_sz, &r_arr, &r_sz, consensusMedian);
 
 #ifdef DEBUG_MODE		
 		fprintf(stderr, "G_RANK(%d) L_RANK(%d): l_sz(%ld) + r_sz(%ld) = total_sz(%ld) <===> numElems(%ld)\n", myrank, localRank,
@@ -349,8 +351,19 @@ int main(int argc, char** argv) {
 
 
 	}
-
+#ifdef CUDA_MODE
+	if (myrank == 0) {
+		fprintf(stderr, "RANK 0: Doing Cuda Sort\n");
+	}
+	CU_Init();
+	CU_OddEvenNetworkSort(data_start, data_end);
+#else
+	if (myrank == 0) {
+		fprintf(stderr, "RANK 0: Doing CPU Sort\n");
+	}
 	m_qsort(data_start, data_end);
+#endif
+
 
 	MPI_Barrier(MPI_COMM_WORLD);
 	/* END PARALLEL SORT */
@@ -388,10 +401,11 @@ int main(int argc, char** argv) {
 		fprintf(stderr, "ERROR RANK(%d): MPI_Scatter() failed with error code(%d): %s\n", myrank, rc, errorStr);
 		MPI_Abort(MPI_COMM_WORLD, rc);
 	}
-
+	
 	free(fsums);
 	
 	fprintf(stderr, "RANK(%d) writing (%ld) bytes at offset (%ld)\n", myrank, out_size, writeAt);
+
 	MPI_Barrier(MPI_COMM_WORLD);
 	
 	if (myrank == 0) {
@@ -402,13 +416,15 @@ int main(int argc, char** argv) {
 				
 
 
-#ifdef DEBUG_MODE
 	printf("RANK(%d) FINISHED ALGORITHM numElems(%ld):", myrank, numElems());
-	for (elem* it = data_start; it <= data_end; ++it) {
-		printf(" %d", *it);
+	if (numElems() > 100) {
+		printf("Output too large, Omitting...\n");
+	} else {
+		for (elem* it = data_start; it <= data_end; ++it) {
+			printf(" %d", *it);
+		}
+		printf("\n");
 	}
-	printf("\n");
-#endif
 
 
 

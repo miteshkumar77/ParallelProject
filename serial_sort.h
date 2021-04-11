@@ -19,12 +19,9 @@
 typedef int elem;
 
 /* GLOBALS */
-elem swapvar;
-int* c;
-
 
 void swap(elem* a, elem* b) {
-	swapvar = *a;
+	elem swapvar = *a;
 	*a = *b;
 	*b = swapvar;
 }
@@ -113,7 +110,7 @@ void m_qsort(elem* l, elem* r) {
 
 elem findKth(elem* l, elem* r, size_t k) {
 	if (k > (1 + (r - l))) {
-		fprintf(stderr, "ERROR: k(%ld) larger than total size(%ld) bytes(%ld)\n", k, ((r - l)/sizeof(elem)), (r - l)); 
+		fprintf(stderr, "ERROR: k(%ld) larger than total size(%ld) bytes(%ld)\n", k, (r - l), (r - l)); 
 		exit(EXIT_FAILURE);
 	}
 	elem* piv;

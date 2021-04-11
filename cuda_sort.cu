@@ -84,13 +84,40 @@ void CU_OddEvenKernel(elem* arr, size_t n, int even, size_t numActions) {
 }
 
 void CU_OddEvenNetworkSort(elem* begin, elem* end, size_t threadsCount) {
+
 	size_t n = end - begin + 1;
+	elem* cbegin;
+	cE = cudaMallocManaged(&cbegin, n * sizeof(elem));
+	if (cE != cudaSuccess) {
+		fprintf(stderr, "ERROR: cudaMallocManaged() failed with error code: %d\n", cE);
+		exit(EXIT_FAILURE);
+	}
+
+	cE = cudaMemcpy(cbegin, begin, n * sizeof(elem), ::cudaMemcpyHostToDevice); 
+	if (cE != cudaSuccess) {
+		fprintf(stderr, "ERROR: cudaMemcpy(::HostToDevice) failed with error code: %d\n", cE);
+		exit(EXIT_FAILURE);
+	}
+
 	ssize_t iters = n;
 	while(iters--) {
 		CU_OddEvenKernel<<<(n/2 + threadsCount)/threadsCount, threadsCount>>>(begin,
 				n, (iters % 2) == 0, n/2);
 		cudaDeviceSynchronize();
 	}
+
+	cE = cudaMemcpy(begin, cbegin, n * sizeof(elem), ::cudaMemcpyDeviceToHost);
+	if (cE != cudaSuccess) {
+		fprintf(stderr, "ERROR: cudaMemcpy(::DeviceToHost) failed with error code: %d\n", cE);
+		exit(EXIT_FAILURE);
+	}
+
+	cE = cudaFree(cbegin);
+	if (cE != cudaSuccess) {
+		fprintf(stderr, "ERROR: cudaFree(::DeviceToHost) failed with error code: %d\n", cE);
+		exit(EXIT_FAILURE);
+	}
+	
 }
 
 #if 0
