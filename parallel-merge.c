@@ -58,7 +58,7 @@ unsigned long long aimos_clock_read(void) {
  * right: right MPI rank
  * returns sorted array of elements in left + right
  */
-elem* merge(int left, int right);
+elem* merge(elem* left, elem* right);
 
 int main(int argc, char** argv) {
 	/* MPI Initialization */
@@ -121,46 +121,46 @@ int main(int argc, char** argv) {
 	MPI_Barrier(MPI_COMM_WORLD);
 
 
-	int numSR = 2; //sends and requests
+	int numSR = 4; //sends and requests
 	MPI_Request reqs[numSR];
 	MPI_Status stats[numSR];
 
-	elem* recv_arr;
 	elem* mergeArray;
+	elem* recv_arr;
+    size_t* recv_size;
 
-
-	//size_t* recv_size = (sizt_t*)calloc(1, sizeof(size_t));
-	//elem* recv_arr; = (elem*)malloc(nSize * sizeof(elem));
 
 
   //merge ranks together via merge sort
   for (size_t s = numranks/2; s >0 ; s>>1){
 	  if (myrank < s){
 		recv_arr= (elem*)malloc(nSize * sizeof(elem));
-		// what if nSize is different? 
-		  // last rank can have less elements, but 
-		  // nSize of myrank >= nSize of myrank+s
-		  // does this make difference
+		recv_size = (sizt_t*)calloc(1, sizeof(size_t));
 
-		// size_t* numSize; 
-		//MPI_Irecv(numSize, 1, MPI_Offset, myrank+s , 1, MPI_COMM_WORLD, reqs[2]);
-
+		rc = MPI_Irecv(recv_size , 1, MPI_Offset, myrank+s , 1, MPI_COMM_WORLD, reqs[2]);
 		rc = MPI_Irecv(recv_arr, nSize, MPI_INT32_T, myrank+s , 0, MPI_COMM_WORLD, reqs[0]);
-
 		rc = MPI_Waitall(numSR, reqs, stats );
-
 	    mergeArray = merge(dataptr,  recv_arr);
 
 		// asign dataptr = mergeArray, set size, free memory
+		free(recv_size);
 		free(dataptr);
 		free(recv_arr);
-		data_start = mergeArray;
+		dataptr = mergeArray;
 		nSize = sizeof(mergeArray)/sizeof(elem);
+		data_start = dataptr;                 // start of (buffer) array
+		data_end   = dataptr + nSize - 1;     // end of (buffer) array
 	  }
 	  else {
-		// size_t* numSize = &nSize;
-		// MPI_Isend((void*)numSize, 1, MPI_Offset, myrank-s , 1, MPI_COMM_WORLD, reqs[3]);
+		//recv_size = &nSize;
+		rc = MPI_Isend((void*)&nSize, 1, MPI_Offset, myrank-s , 1, MPI_COMM_WORLD, reqs[3]);
 		rc = MPI_Isend(dataptr, nSize, MPI_INT32_T, myrank-s , 0, MPI_COMM_WORLD, reqs[1]);
+
+		//terminate / snooze ... 
+        
+        //free(dataptr)
+		//MPI_Finalize();
+		//exit(1);
 	  }
   }
 
@@ -169,16 +169,17 @@ int main(int argc, char** argv) {
 		end_time = aimos_clock_read();
 		duration = (end_time - start_time)/CLOCKS_PER_MSEC;
 		fprintf(stderr, "TOTAL EXECUTION TIME: %llu MILLISECONDS\n", duration);
-	}
-
-	printf("RANK(%d) FINISHED (MERGE) ALGORITHM numElems(%ld):", myrank, numElems());
-	if (numElems() > 100) {
-		printf("Output too large, Omitting...\n");
-	} else {
-		for (elem* it = data_start; it <= data_end; ++it) {
-			printf(" %d", *it);
+	
+		printf("RANK(%d) FINISHED (MERGE) ALGORITHM numElems(%ld):", myrank, numElems());
+		// why 100 
+		if (numElems() > 100) {
+			printf("Output too large, Omitting...\n");
+		} else {
+			for (elem* it = data_start; it <= data_end; ++it) {
+				printf(" %d", *it);
+			}
+			printf("\n");
 		}
-		printf("\n");
 	}
 
 
@@ -225,4 +226,8 @@ elem* merge(elem* left, elem* right){
 	}
 
 	return mergeArray;
+}
+
+size_t numElems() {
+	return (data_end - data_start + 1);
 }
