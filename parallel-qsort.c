@@ -1,10 +1,11 @@
-#include <mpi/mpi.h>
+#include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include "./serial_sort.h"
 #include "./filereader.h"
+#include "./peak_mem_check.h"
 
 #ifdef CUDA_MODE
 #include "./cuda_api.h"
@@ -46,13 +47,11 @@ unsigned long long duration;
  */
 unsigned long long aimos_clock_read(void) {
   unsigned int tbl, tbu0, tbu1;
-
   do {
     __asm__ __volatile__("mftbu %0" : "=r"(tbu0));
     __asm__ __volatile__("mftb %0" : "=r"(tbl));
     __asm__ __volatile__("mftbu %0" : "=r"(tbu1));
   } while (tbu0 != tbu1);
-
   return (((unsigned long long)tbu0) << 32) | tbl;
 }
 
@@ -411,10 +410,18 @@ int main(int argc, char** argv) {
 	if (myrank == 0) {
 		end_time = aimos_clock_read();
 		duration = (end_time - start_time)/CLOCKS_PER_MSEC;
-		fprintf(stderr, "TOTAL EXECUTION TIME: %llu MILLISECONDS\n", duration);
+		printf("TOTAL EXECUTION TIME: %llu MILLISECONDS\n", duration);
+		fflush(NULL);
 	}
-				
-
+	
+	for (int i = 0; i < numranks; ++i) {
+		if (i == myrank) {
+			printf("RANK(%d) PEAK MEMORY USAGE: ", myrank);
+			fflush(NULL);
+			peak_mem_check(getpid()); 
+		}
+		MPI_Barrier(MPI_COMM_WORLD);
+	}
 
 	printf("RANK(%d) FINISHED ALGORITHM numElems(%ld):", myrank, numElems());
 	if (numElems() > 100) {

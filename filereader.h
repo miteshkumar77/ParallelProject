@@ -13,7 +13,7 @@
  * -- write elements to a file in binary form.
  *    (not tested yet)
  */
-#include <mpi/mpi.h>
+#include <mpi.h>
 #include "serial_sort.h"
 
 MPI_Offset readfile(int myrank, int numranks, elem** dataptr, char* fname, MPI_Comm fcomm) {
