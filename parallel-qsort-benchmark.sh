@@ -28,5 +28,5 @@ taskset --cpu-list 0,4,8,12,16,20,24,28,32,36,40,44,48,52,56,60,64,68,72,76,80,8
 osts.$SLURM_JOB_ID -np $SLURM_NPROCS\
   /gpfs/u/home/PCPA/PCPAkmrm/barn/ParallelProject/parallel-qsort.exe /gpfs/u/home/PCPA/PCPAkmrm/scratch/tempfile.txt fakepath.txt
 
-rm $frpath
+rm /gpfs/u/home/PCPA/PCPAkmrm/scratch/tempfile.txt
 rm /tmp/hosts.$SLURM_JOB_ID
