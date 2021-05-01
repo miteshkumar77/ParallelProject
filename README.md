@@ -2,6 +2,7 @@
 
 https://www.overleaf.com/2843638255vbbtgrffwdbn
 
+https://docs.google.com/spreadsheets/d/1eT6IGapXR3tc1kAAuBgW7sdR-1guILFOPUcmq0dxb7E/edit
 
 9 pages double column, single spacing, 10 point font with more performance graphs and more references
 
@@ -33,7 +34,7 @@ sbatch -N 1 --ntasks-per-node=4 --partition=dcs --gres=gpu:6 -t 10 ./benchmark4.
 sbatch -N 1 --ntasks-per-node=8 --partition=dcs --gres=gpu:6 -t 10 ./benchmark8.sh
 sbatch -N 1 --ntasks-per-node=16 --partition=dcs --gres=gpu:6 -t 10 ./benchmark16.sh
 ```
-# for strongscaling
+# for strong scaling
 ```
 sbatch -N 1 --ntasks-per-node=1 --partition=dcs --gres=gpu:6 -t 10 ./benchmark.sh
 sbatch -N 1 --ntasks-per-node=2 --partition=dcs --gres=gpu:6 -t 10 ./benchmark.sh
