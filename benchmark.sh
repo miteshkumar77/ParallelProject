@@ -16,21 +16,21 @@ then
   SLURM_NPROCS=`expr $SLURM_JOB_NUM_NODES \* $SLURM_NTASKS_PER_NODE`
 fi
 
-#mkdir NormalSS
+#mkdir SS
 ./generator.out 0 10000 1000000 normal /gpfs/u/home/PCPA/PCPAgjnn/scratch/tempfile.txt
 
 #without cuda
 taskset --cpu-list 0,4,8,12,16,20,24,28,32,36,40,44,48,52,56,60,64,68,72,76,80,84,88,92\
 ,96,100,104,108,112,116,120,124,128,132,136,140,144,148,152,156 mpirun -hostfile /tmp/h\
 osts.$SLURM_JOB_ID -np $SLURM_NPROCS\
-  /gpfs/u/home/PCPA/PCPAgjnn/ParallelProject/project.out /gpfs/u/home/PCPA/PCPAgjnn/scratch/tempfile.txt fakepath.txt >$SLURM_NPROCS-projectN
+  /gpfs/u/home/PCPA/PCPAgjnn/ParallelProject/project.out /gpfs/u/home/PCPA/PCPAgjnn/scratch/tempfile.txt fakepath.txt >SS/$SLURM_NPROCS-projectN
 
 
 #with cuda 
 taskset --cpu-list 0,4,8,12,16,20,24,28,32,36,40,44,48,52,56,60,64,68,72,76,80,84,88,92\
 ,96,100,104,108,112,116,120,124,128,132,136,140,144,148,152,156 mpirun -hostfile /tmp/h\
 osts.$SLURM_JOB_ID -np $SLURM_NPROCS\
-  /gpfs/u/home/PCPA/PCPAgjnn/ParallelProject/parallel-qsort.exe /gpfs/u/home/PCPA/PCPAgjnn/scratch/tempfile.txt fakepath.txt >$SLURM_NPROCS-parallelQsortN
+  /gpfs/u/home/PCPA/PCPAgjnn/ParallelProject/parallel-qsort.exe /gpfs/u/home/PCPA/PCPAgjnn/scratch/tempfile.txt fakepath.txt >SS/$SLURM_NPROCS-parallelQsortN
 
 
 rm /gpfs/u/home/PCPA/PCPAgjnn/scratch/tempfile.txt

@@ -21,12 +21,12 @@ fi
 taskset --cpu-list 0,4,8,12,16,20,24,28,32,36,40,44,48,52,56,60,64,68,72,76,80,84,88,92\
 ,96,100,104,108,112,116,120,124,128,132,136,140,144,148,152,156 mpirun -hostfile /tmp/h\
 osts.$SLURM_JOB_ID -np $SLURM_NPROCS\
-  /gpfs/u/home/PCPA/PCPAgjnn/ParallelProject/project.out /gpfs/u/home/PCPA/PCPAgjnn/scratch/tempfile.txt fakepath.txt >8m-projectE
+  /gpfs/u/home/PCPA/PCPAgjnn/ParallelProject/project.out /gpfs/u/home/PCPA/PCPAgjnn/scratch/tempfile.txt fakepath.txt >WS/8m-projectE
 
 taskset --cpu-list 0,4,8,12,16,20,24,28,32,36,40,44,48,52,56,60,64,68,72,76,80,84,88,92\
 ,96,100,104,108,112,116,120,124,128,132,136,140,144,148,152,156 mpirun -hostfile /tmp/h\
 osts.$SLURM_JOB_ID -np $SLURM_NPROCS\
-  /gpfs/u/home/PCPA/PCPAgjnn/ParallelProject/parallel-qsort.exe /gpfs/u/home/PCPA/PCPAgjnn/scratch/tempfile.txt fakepath.txt >8m-parallelQsortE
+  /gpfs/u/home/PCPA/PCPAgjnn/ParallelProject/parallel-qsort.exe /gpfs/u/home/PCPA/PCPAgjnn/scratch/tempfile.txt fakepath.txt >WS/8m-parallelQsortE
 
   
 rm /gpfs/u/home/PCPA/PCPAgjnn/scratch/tempfile.txt
