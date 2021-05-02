@@ -19,13 +19,13 @@ hexdump ~/scratch/datafile.txt
 ```
 ssh dcsfen02
 module load xl_r spectrum-mpi cuda/10.2
-make generator
-make project
-make project-cuda
+make generator project project-cuda
 salloc -N 1 --partition=rpi --gres=gpu:4 -t 60
 
 ```
-
+# Make directories
+mkdir SS WS
+    
 # for weak scaling
 ```
 sbatch -N 1 --ntasks-per-node=1 --partition=dcs --gres=gpu:6 -t 10 ./benchmark1.sh
