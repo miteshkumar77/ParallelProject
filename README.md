@@ -1,4 +1,4 @@
-## ParallelProject
+## MPI HyperQuicksort
 
 https://www.overleaf.com/2843638255vbbtgrffwdbn
 
